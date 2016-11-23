@@ -32,6 +32,8 @@
     <main.signature.artifact>java18</main.signature.artifact>
     <start-class>zipkin.server.ZipkinServer</start-class>
     <maven-invoker-plugin.version>2.0.0</maven-invoker-plugin.version>
+    <riposte.version>0.8.1</riposte.version>
+    <future-converter.version>1.0.0</future-converter.version>
   </properties>
 
   <dependencyManagement>
@@ -48,6 +50,18 @@
   </dependencyManagement>
 
   <dependencies>
+    <dependency>
+      <groupId>com.nike.riposte</groupId>
+      <artifactId>riposte-core</artifactId>
+      <version>${riposte.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>net.javacrumbs.future-converter</groupId>
+      <artifactId>future-converter-spring-java8</artifactId>
+      <version>${future-converter.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>

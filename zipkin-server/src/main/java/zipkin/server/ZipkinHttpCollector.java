@@ -13,10 +13,13 @@
  */
 package zipkin.server;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.zip.GZIPInputStream;
+import com.nike.riposte.server.http.RequestInfo;
+import com.nike.riposte.server.http.ResponseInfo;
+import com.nike.riposte.server.http.StandardEndpoint;
+import com.nike.riposte.util.Matcher;
+
+import net.javacrumbs.futureconverter.springjava.FutureConverter;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.concurrent.ListenableFuture;
@@ -26,6 +29,20 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.zip.GZIPInputStream;
+
+import javax.inject.Inject;
+import javax.inject.Named;
+import javax.inject.Singleton;
+
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.HttpMethod;
 import zipkin.Codec;
 import zipkin.collector.Collector;
 import zipkin.collector.CollectorMetrics;
@@ -61,6 +78,47 @@ public class ZipkinHttpCollector {
       @RequestBody byte[] body
   ) {
     return validateAndStoreSpans(encoding, Codec.JSON, body);
+  }
+
+  @Singleton
+  @Named
+  public static class RiposteSpanIngestEndpoint extends StandardEndpoint<Void, String> {
+    private final Matcher matcher = Matcher.match("/api/v1/spans", HttpMethod.POST);
+
+    private final ZipkinHttpCollector zipkinHttpCollector;
+
+    @Inject
+    public RiposteSpanIngestEndpoint(ZipkinHttpCollector zipkinHttpCollector) {
+      this.zipkinHttpCollector = zipkinHttpCollector;
+    }
+
+    @Override
+    public CompletableFuture<ResponseInfo<String>> execute(RequestInfo<Void> request, Executor longRunningTaskExecutor,
+                                                           ChannelHandlerContext ctx) {
+      String encoding = request.getHeaders().get("Content-Encoding");
+      byte[] body = request.getRawContentBytes();
+
+      return FutureConverter.toCompletableFuture(
+        zipkinHttpCollector.validateAndStoreSpans(encoding, Codec.JSON, body)
+      ).thenApply(
+        springResponse -> zipkinHttpCollector.convertSpringResponseEntityToRiposteResponseInfo(springResponse, "text/plain")
+      );
+    }
+
+    @Override
+    public Matcher requestMatcher() {
+      return matcher;
+    }
+  }
+
+  protected ResponseInfo<String> convertSpringResponseEntityToRiposteResponseInfo(ResponseEntity<?> springResponse, String mimeType) {
+    Object body = springResponse.getBody();
+    String bodyString = (body == null) ? null : body.toString();
+
+    return ResponseInfo.newBuilder(bodyString)
+                       .withHttpStatusCode(springResponse.getStatusCodeValue())
+                       .withDesiredContentWriterMimeType(mimeType)
+                       .build();
   }
 
   @RequestMapping(value = "/api/v1/spans", method = POST, consumes = APPLICATION_THRIFT)

@@ -139,6 +139,7 @@ logging:
   level:
     # Silence Invalid method name: '__can__finagle__trace__v3__'
     com.facebook.swift.service.ThriftServiceProcessor: 'OFF'
+    VALID_WINGTIPS_SPANS: 'OFF'
 #     # investigate /api/v1/dependencies
 #     zipkin.internal.DependencyLinker: 'DEBUG'
 #     # log cassandra queries (DEBUG is without values)
